@@ -11,6 +11,7 @@ from typing import Callable
 
 from ..llm import Message, chat
 from ..scout import Manifest
+from ._parallel import parallel_map
 from ._utils import cite, extract_json, hits_to_context
 from .state import GraphState, ModuleSummary
 
@@ -149,21 +150,20 @@ def _module_prefix(module: str) -> str:
 
 
 def run_reader(state: GraphState, retrieve: RetrieveFn) -> dict:
-    """LangGraph node — reads every top-level module, returns updates."""
+    """LangGraph node — reads every top-level module concurrently."""
     manifest: Manifest = state["manifest"]
     modules = manifest.top_level_modules or [""]   # "" means whole repo
-
-    summaries: list[ModuleSummary] = []
     errors: list[str] = list(state.get("errors", []))
-    for mod in modules:
-        try:
-            summaries.append(read_module(mod, manifest, retrieve))
-        except Exception as e:  # noqa: BLE001 — never let one bad module kill the graph
-            errors.append(f"reader[{mod}]: {type(e).__name__}: {e}")
-            summaries.append(
-                ModuleSummary(
-                    module=mod, purpose=f"(reader errored: {e})",
-                    public_api=[], key_behaviors=[], citations=[],
-                )
-            )
+
+    def _read_one(mod: str) -> ModuleSummary:
+        return read_module(mod, manifest, retrieve)
+
+    def _on_error(mod: str, exc: BaseException) -> ModuleSummary:
+        errors.append(f"reader[{mod}]: {type(exc).__name__}: {exc}")
+        return ModuleSummary(
+            module=mod, purpose=f"(reader errored: {exc})",
+            public_api=[], key_behaviors=[], citations=[],
+        )
+
+    summaries = parallel_map(_read_one, modules, default_factory=_on_error)
     return {"module_summaries": summaries, "errors": errors}

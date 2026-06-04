@@ -47,6 +47,35 @@ class Architecture(TypedDict):
     runtime_topology: str   # "cli" / "server" / "worker" / "library" / "hybrid"
 
 
+class TestSummary(TypedDict):
+    total_test_files: int
+    total_test_cases: int
+    frameworks: list[str]            # ["pytest", "jest", ...]
+    tested_symbols: list[str]        # public_api entries found in test files
+    untested_symbols: list[str]      # public_api entries NOT found in test files
+    citations: list[str]             # representative "tests/foo.py:42" hits
+
+
+class APIRoute(TypedDict):
+    kind: str                        # "http" | "cli"
+    method: str                      # "GET" | "POST" | "CLI" | etc.
+    path: str                        # "/users/{id}" or "docforge eval"
+    handler: str                     # function name
+    citation: str                    # "src/api.py:42"
+
+
+class EnvVar(TypedDict):
+    name: str
+    default: str | None
+    required: bool
+    citation: str
+
+
+class ConfigSummary(TypedDict):
+    env_vars: list[EnvVar]
+    config_files: list[str]          # repo-relative paths to settings/config files
+
+
 class GraphState(TypedDict, total=False):
     """Shared state. `total=False` so we can fill it in stages."""
 
@@ -55,6 +84,11 @@ class GraphState(TypedDict, total=False):
     repo_name: str
     manifest: Manifest
     out_dir: str
+
+    # Specialist scouts (parallel branch from START — all static, no LLM)
+    test_summary: TestSummary
+    api_routes: list[APIRoute]
+    config_summary: ConfigSummary
 
     # Reader output
     module_summaries: list[ModuleSummary]
@@ -83,6 +117,12 @@ def initial_state(repo_path: str, repo_name: str, manifest: Manifest, out_dir: s
         repo_name=repo_name,
         manifest=manifest,
         out_dir=out_dir,
+        test_summary=TestSummary(
+            total_test_files=0, total_test_cases=0,
+            frameworks=[], tested_symbols=[], untested_symbols=[], citations=[],
+        ),
+        api_routes=[],
+        config_summary=ConfigSummary(env_vars=[], config_files=[]),
         module_summaries=[],
         architecture=Architecture(
             components=[], edges=[], external_deps=[], runtime_topology=""

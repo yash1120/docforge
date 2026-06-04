@@ -164,6 +164,22 @@ def _run_team(repo: Path, out: Path, manifest, index: CodeIndex, *, beautify: bo
     (out / "architecture.json").write_text(
         json.dumps(final.get("architecture", {}), indent=2), encoding="utf-8"
     )
+    # Parallel scout outputs (W4)
+    (out / "test_summary.json").write_text(
+        json.dumps(final.get("test_summary", {}), indent=2), encoding="utf-8"
+    )
+    (out / "api_routes.json").write_text(
+        json.dumps(final.get("api_routes", []), indent=2), encoding="utf-8"
+    )
+    (out / "config_summary.json").write_text(
+        json.dumps(final.get("config_summary", {}), indent=2), encoding="utf-8"
+    )
+    # Critic verdict (W3)
+    if final.get("critique"):
+        (out / "critique.json").write_text(
+            json.dumps(final.get("critique", {}), indent=2), encoding="utf-8"
+        )
+
     diagram = final.get("diagram_mmd", "")
     (out / "docs" / "diagram.mmd").write_text(diagram, encoding="utf-8")
 
@@ -175,11 +191,32 @@ def _run_team(repo: Path, out: Path, manifest, index: CodeIndex, *, beautify: bo
     if errors:
         (out / "errors.log").write_text("\n".join(errors), encoding="utf-8")
 
+    # Surface what the parallel scouts found
+    ts = final.get("test_summary") or {}
+    ar = final.get("api_routes") or []
+    cs = final.get("config_summary") or {}
+    console.print(
+        f"  [dim]scouts: tests={ts.get('total_test_cases', 0)} "
+        f"({'/'.join(ts.get('frameworks', [])) or 'none'})"
+        f", routes={len(ar)}, env_vars={len(cs.get('env_vars', []))}[/dim]"
+    )
+
     sizes = ", ".join(f"{n}={len(b):,}c" for n, b in drafts.items())
     console.print(
         f"  -> wrote [white]docs/[/white] ({len(drafts)} files: {sizes})  "
         f"[dim]({time.time()-t:.1f}s)[/dim]"
     )
+
+    # Critic verdict summary
+    critique = final.get("critique") or {}
+    if critique:
+        console.print(
+            f"  [dim]critic (cycle {critique.get('cycle', '?')}): "
+            f"factuality={critique.get('factuality_score', 0):.2%}, "
+            f"coverage={critique.get('coverage_score', 0):.2%}, "
+            f"issues={len(critique.get('issues', []))}[/dim]"
+        )
+
     if errors:
         console.print(f"  [yellow]({len(errors)} non-fatal errors logged to errors.log)[/yellow]")
 

@@ -22,6 +22,7 @@ from typing import Any, Callable, TypedDict
 
 from ..llm import LLMError, Message, chat
 from ..scout import Manifest
+from ._parallel import parallel_map
 from ._utils import extract_json
 from .state import GraphState
 
@@ -278,74 +279,61 @@ def run_critic(state: GraphState, retrieve: RetrieveFn | None = None) -> dict:
     issues: list[Issue] = []
 
     total_citations = 0
-    grounded_count = 0
-    grounding_budget = MAX_GROUNDING_PER_CYCLE
 
-    # Per-doc passes
+    # Pass 1 (serial, cheap): parse citations per doc, run deterministic validity,
+    # collect (doc_name, ref) pairs for the LLM grounding pass.
+    to_judge: list[tuple[str, CitationRef]] = []
+    seen: set[tuple[str, int, int]] = set()
     for doc_name, doc_text in drafts.items():
         refs = parse_citations(doc_text)
         total_citations += len(refs)
-
-        # 1. Deterministic citation validity
-        valid_refs: list[CitationRef] = []
         for ref in refs:
             ok, reason = check_citation(ref, repo_root)
             if not ok:
-                issues.append(
-                    Issue(
-                        doc=doc_name,
-                        severity="error",
-                        kind="broken_citation",
-                        claim=ref.sentence,
-                        citation=ref.raw,
-                        suggestion=f"remove or fix: {reason}",
-                    )
-                )
+                issues.append(Issue(
+                    doc=doc_name, severity="error", kind="broken_citation",
+                    claim=ref.sentence, citation=ref.raw,
+                    suggestion=f"remove or fix: {reason}",
+                ))
                 continue
-            valid_refs.append(ref)
-
-        # 2. LLM grounding for as many valid citations as budget allows
-        # Deduplicate by (file, line_start, line_end) so we don't re-judge the same ref
-        seen: set[tuple[str, int, int]] = set()
-        unique_refs = []
-        for r in valid_refs:
-            key = (r.file, r.line_start, r.line_end)
+            key = (ref.file, ref.line_start, ref.line_end)
             if key in seen:
                 continue
             seen.add(key)
-            unique_refs.append(r)
+            to_judge.append((doc_name, ref))
 
-        for ref in unique_refs:
-            if grounding_budget <= 0:
-                break
-            grounding_budget -= 1
-            supported, reason = judge_grounding(ref, repo_root)
-            if supported:
-                grounded_count += 1
-            else:
-                issues.append(
-                    Issue(
-                        doc=doc_name,
-                        severity="warn",
-                        kind="ungrounded",
-                        claim=ref.sentence,
-                        citation=ref.raw,
-                        suggestion=f"cited code doesn't support claim ({reason})",
-                    )
-                )
-
-        # 3. Uncited factual-looking claims
+        # Uncited claims (cheap; serial)
         for suspect in find_uncited_factual_claims(doc_text):
-            issues.append(
-                Issue(
-                    doc=doc_name,
-                    severity="warn",
-                    kind="uncited_claim",
-                    claim=suspect,
-                    citation=None,
-                    suggestion="add a [file.py:line] citation or remove the claim",
-                )
-            )
+            issues.append(Issue(
+                doc=doc_name, severity="warn", kind="uncited_claim",
+                claim=suspect, citation=None,
+                suggestion="add a [file.py:line] citation or remove the claim",
+            ))
+
+    # Pass 2 (parallel, expensive): LLM grounding judgments, bounded by budget.
+    judging = to_judge[:MAX_GROUNDING_PER_CYCLE]
+
+    def _judge_one(pair: tuple[str, CitationRef]) -> tuple[str, CitationRef, bool, str]:
+        doc_name, ref = pair
+        supported, reason = judge_grounding(ref, repo_root)
+        return doc_name, ref, supported, reason
+
+    def _on_judge_error(pair: tuple[str, CitationRef], exc: BaseException) -> tuple[str, CitationRef, bool, str]:
+        doc_name, ref = pair
+        return doc_name, ref, True, f"(grounding errored: {exc})"  # don't penalize for infra fail
+
+    verdicts = parallel_map(_judge_one, judging, default_factory=_on_judge_error)
+
+    grounded_count = 0
+    for doc_name, ref, supported, reason in verdicts:
+        if supported:
+            grounded_count += 1
+        else:
+            issues.append(Issue(
+                doc=doc_name, severity="warn", kind="ungrounded",
+                claim=ref.sentence, citation=ref.raw,
+                suggestion=f"cited code doesn't support claim ({reason})",
+            ))
 
     # 4. Coverage (cross-doc, deterministic)
     coverage_score, missing = compute_coverage(manifest.public_api, drafts)
