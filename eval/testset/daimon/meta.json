@@ -1,0 +1,7 @@
+{
+  "name": "daimon",
+  "repo_path": "F:/projects/daimon",
+  "primary_language": "Python",
+  "runtime_topology": "server",
+  "notes": "Daily philosopher-letter web app. LangGraph + Groq + RAG + FastAPI + 3D Three.js UI. Seeded with 5 claims drawn from a manual read; expand to 20 to hit the W3 bar."
+}

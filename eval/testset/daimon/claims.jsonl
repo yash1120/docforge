@@ -1,0 +1,5 @@
+{"id": "daimon-01", "claim": "Letters are produced by a LangGraph pipeline with load_context -> planner -> drafter -> polisher nodes.", "module": "src/daimon"}
+{"id": "daimon-02", "claim": "Daily letter delivery has a main entry point in delivery/daily.py.", "expected_files": ["src/daimon/delivery/daily.py"], "module": "src/daimon/delivery"}
+{"id": "daimon-03", "claim": "Persona definitions (Seneca, Marcus Aurelius, Nietzsche, Camus, Simone Weil) live in personas/registry.py with a get_persona lookup.", "expected_files": ["src/daimon/personas/registry.py"], "module": "src/daimon/personas"}
+{"id": "daimon-04", "claim": "The FastAPI HTTP server exposes web endpoints including a list_philosophers API.", "expected_files": ["src/daimon/api.py"], "module": "src/daimon"}
+{"id": "daimon-05", "claim": "RAG retrieval has a chromadb backend with a TF-IDF fallback, selected at runtime.", "expected_files": ["src/daimon/rag/retriever.py"], "module": "src/daimon/rag"}
