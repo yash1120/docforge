@@ -1,0 +1,41 @@
+# Fly.io config for docforge web server.
+# Deploy:  fly deploy
+# Set secrets (one-time):  fly secrets set GROQ_API_KEY=... ANTHROPIC_API_KEY=...
+
+app = "docforge"
+primary_region = "syd"            # Sydney — closest to Yash. Change as needed.
+
+[build]
+  dockerfile = "Dockerfile"
+
+[env]
+  PORT = "8000"
+  DOCFORGE_MAX_PARALLEL = "4"
+
+# We use the cheapest shared-1x machine. A docforge run on a 50k LOC repo needs
+# headroom for embeddings + chunking; bump RAM if you hit OOM.
+[[vm]]
+  size = "shared-cpu-1x"
+  memory = "1gb"
+  cpu_kind = "shared"
+  cpus = 1
+
+[http_service]
+  internal_port = 8000
+  force_https = true
+  auto_stop_machines = "stop"     # save money: idle machines sleep
+  auto_start_machines = true
+  min_machines_running = 0
+  processes = ["app"]
+
+  [http_service.concurrency]
+    type = "requests"
+    soft_limit = 6
+    hard_limit = 12
+
+[[http_service.checks]]
+  interval = "30s"
+  timeout = "5s"
+  grace_period = "10s"
+  method = "GET"
+  path = "/api/health"

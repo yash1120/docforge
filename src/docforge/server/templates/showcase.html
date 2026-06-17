@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+{% block title %}showcase &middot; docforge{% endblock %}
+{% block content %}
+
+<section class="showcase">
+  <h1>showcase</h1>
+  <p class="lede">Five OSS repos run through docforge end-to-end. Generated docs, the critic verdict, and side-by-side scores.</p>
+
+  {% if not scoreboard %}
+    <div class="placeholder">
+      <p>No real-eval data yet. After running <code>docforge-eval</code>, each entry in <code>eval/scoreboard_data.json</code> appears here.</p>
+      <p>Target lineup (per the plan): FastAPI (Python), a TS library, ripgrep (Rust), Hugo (Go), Next.js (polyglot).</p>
+    </div>
+  {% else %}
+    <div class="card-grid">
+    {% for r in scoreboard.repos %}
+      <article class="repo-card">
+        <h3><code>{{ r.repo }}</code></h3>
+        <ul class="badges">
+          <li>factuality <strong>{{ "%.0f"|format((r.factuality or 0) * 100) }}%</strong></li>
+          <li>coverage <strong>{{ "%.0f"|format((r.coverage or 0) * 100) }}%</strong></li>
+          <li>readability <strong>{{ "%.2f"|format(r.readability or 0) }}</strong>/5</li>
+        </ul>
+      </article>
+    {% endfor %}
+    </div>
+  {% endif %}
+</section>
+
+{% endblock %}

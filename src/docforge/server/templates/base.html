@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}docforge{% endblock %}</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="/">docforge</a>
+    <nav>
+      <a href="/">try</a>
+      <a href="/showcase">showcase</a>
+      <a href="/scoreboard">scoreboard</a>
+      <a href="https://github.com/" target="_blank" rel="noopener">github</a>
+    </nav>
+  </header>
+
+  <main>
+    {% block content %}{% endblock %}
+  </main>
+
+  <footer>
+    <p>multi-agent docs generator &middot; mit licensed &middot; built with LangGraph + Groq + Chroma</p>
+  </footer>
+</body>
+</html>

@@ -1,0 +1,46 @@
+{% extends "base.html" %}
+{% block title %}scoreboard &middot; docforge{% endblock %}
+{% block content %}
+
+<section class="scoreboard">
+  <h1>eval scoreboard</h1>
+  <p class="muted">judge: <code>{{ scoreboard.get('judge', 'claude-sonnet-4-6') if scoreboard else '—' }}</code></p>
+
+  {% if not scoreboard %}
+    <div class="placeholder">
+      <p>No <code>eval/scoreboard_data.json</code> found yet.</p>
+      <p>Run:</p>
+      <pre><code>docforge-eval --testset eval/testset --out eval/scoreboard_data.json</code></pre>
+    </div>
+  {% else %}
+    <h3>aggregate (mean across {{ scoreboard.get('n_repos', 0) }} repo{{ 's' if scoreboard.get('n_repos', 0) != 1 else '' }})</h3>
+    <table class="metrics">
+      <tr><th>factuality</th><td>{{ "%.0f"|format((scoreboard.summary.factuality_mean or 0) * 100) }}%</td></tr>
+      <tr><th>coverage</th><td>{{ "%.0f"|format((scoreboard.summary.coverage_mean or 0) * 100) }}%</td></tr>
+      <tr><th>completeness</th><td>{{ "%.0f"|format((scoreboard.summary.completeness_mean or 0) * 100) }}%</td></tr>
+      <tr><th>citation density</th><td>{{ "%.2f"|format(scoreboard.summary.citation_density_mean or 0) }} / 100 words</td></tr>
+      <tr><th>readability</th><td>{{ "%.2f"|format(scoreboard.summary.readability_mean or 0) }} / 5</td></tr>
+    </table>
+
+    <h3>per repo</h3>
+    <table class="per-repo">
+      <thead>
+        <tr><th>repo</th><th>factuality</th><th>coverage</th><th>completeness</th><th>density</th><th>readability</th></tr>
+      </thead>
+      <tbody>
+      {% for r in scoreboard.repos %}
+        <tr>
+          <td><code>{{ r.repo }}</code></td>
+          <td>{{ "%.0f"|format((r.factuality or 0) * 100) }}%</td>
+          <td>{{ "%.0f"|format((r.coverage or 0) * 100) }}%</td>
+          <td>{{ "%.0f"|format((r.completeness or 0) * 100) }}%</td>
+          <td>{{ "%.2f"|format(r.citation_density or 0) }}</td>
+          <td>{{ "%.2f"|format(r.readability or 0) }}</td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  {% endif %}
+</section>
+
+{% endblock %}

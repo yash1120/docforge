@@ -20,6 +20,10 @@ dependencies = [
     "anthropic>=0.40",
     "langgraph>=0.2",
     "langchain-core>=0.3",
+    "fastapi>=0.115",
+    "uvicorn[standard]>=0.30",
+    "jinja2>=3.1",
+    "sse-starlette>=2.1",
     "tree-sitter>=0.23",
     "tree-sitter-python>=0.23",
     "tree-sitter-typescript>=0.23",
@@ -38,6 +42,7 @@ dev = [
 [project.scripts]
 docforge = "docforge.cli:app"
 docforge-eval = "docforge.evals.cli:app"
+docforge-serve = "docforge.server.cli:app"
 
 [tool.setuptools.packages.find]
 where = ["src"]

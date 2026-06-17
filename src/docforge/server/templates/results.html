@@ -1,0 +1,77 @@
+{% extends "base.html" %}
+{% block title %}docforge &middot; {{ job.repo_name }}{% endblock %}
+{% block content %}
+
+<section class="results">
+  <h1>{{ job.repo_name }} <span class="muted">&middot; {{ job.status }}</span></h1>
+  <p class="meta">source: <code>{{ job.repo_source }}</code> &middot; took {{ "%.1f"|format(job.duration_sec) }}s</p>
+
+  {% if job.error %}
+    <div class="error">
+      <h3>failed</h3>
+      <pre>{{ job.error }}</pre>
+    </div>
+  {% endif %}
+
+  {% if job.critique %}
+    <div class="critique">
+      <h3>critic verdict (cycle {{ job.critique.get('cycle', '?') }})</h3>
+      <ul>
+        <li>factuality: <strong>{{ "%.0f"|format((job.critique.get('factuality_score', 0) or 0) * 100) }}%</strong></li>
+        <li>coverage: <strong>{{ "%.0f"|format((job.critique.get('coverage_score', 0) or 0) * 100) }}%</strong></li>
+        <li>citation density: <strong>{{ "%.2f"|format(job.critique.get('citation_density', 0) or 0) }}</strong> per 100 words</li>
+        <li>open issues: <strong>{{ job.critique.get('issues', [])|length }}</strong></li>
+      </ul>
+    </div>
+  {% endif %}
+
+  {% if job.diagram_mmd %}
+    <h3>architecture diagram</h3>
+    <pre class="mermaid-block"><code>{{ job.diagram_mmd }}</code></pre>
+  {% endif %}
+
+  <h3>scouts</h3>
+  <div class="scout-grid">
+    <div class="scout-card">
+      <h4>tests</h4>
+      <p><strong>{{ job.test_summary.get('total_test_cases', 0) }}</strong> cases across <strong>{{ job.test_summary.get('total_test_files', 0) }}</strong> files</p>
+      <p class="muted">frameworks: {{ job.test_summary.get('frameworks', [])|join(', ') or '—' }}</p>
+      <p class="muted">untested: {{ job.test_summary.get('untested_symbols', [])|length }} of {{ (job.test_summary.get('tested_symbols', [])|length) + (job.test_summary.get('untested_symbols', [])|length) }} symbols</p>
+    </div>
+    <div class="scout-card">
+      <h4>routes &amp; commands</h4>
+      <p><strong>{{ job.api_routes|length }}</strong> entries</p>
+      {% if job.api_routes %}
+      <ul class="routes">
+        {% for r in job.api_routes[:8] %}
+          <li><code>{{ r.method }} {{ r.path }}</code> <span class="muted">{{ r.handler or '' }}</span></li>
+        {% endfor %}
+      </ul>
+      {% endif %}
+    </div>
+    <div class="scout-card">
+      <h4>config</h4>
+      <p><strong>{{ job.config_summary.get('env_vars', [])|length }}</strong> env vars</p>
+      <p class="muted">config files: {{ job.config_summary.get('config_files', [])|join(', ') or '—' }}</p>
+    </div>
+  </div>
+
+  <h3>generated docs</h3>
+  {% if job.drafts %}
+    <ul class="doc-tabs">
+      {% for name in job.drafts.keys() %}
+        <li><a href="#doc-{{ name }}">{{ name }}</a></li>
+      {% endfor %}
+    </ul>
+    {% for name, body in job.drafts.items() %}
+      <article id="doc-{{ name }}" class="doc">
+        <h4>{{ name }} <a class="raw" href="/api/run/{{ job.id }}/doc/{{ name }}">raw</a></h4>
+        <pre><code>{{ body }}</code></pre>
+      </article>
+    {% endfor %}
+  {% elif job.status == 'running' or job.status == 'queued' %}
+    <p class="muted">still working&hellip; refresh the page when status shows <code>done</code>.</p>
+  {% endif %}
+</section>
+
+{% endblock %}

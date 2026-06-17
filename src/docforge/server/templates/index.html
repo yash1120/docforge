@@ -1,0 +1,49 @@
+{% extends "base.html" %}
+{% block title %}docforge — multi-agent docs generator{% endblock %}
+{% block content %}
+
+<section class="hero">
+  <h1>point at a repo. get an honest <code>docs/</code> folder back.</h1>
+  <p class="lede">
+    Multi-agent pipeline (LangGraph + Groq + Chroma). Every non-trivial claim is grounded with <code>[file:line]</code> citations and verified by a critic loop.
+  </p>
+
+  <form id="run-form" class="run-form">
+    <label for="git_url">GitHub URL</label>
+    <input id="git_url" name="git_url" type="url" placeholder="https://github.com/owner/repo" autocomplete="off">
+    <button type="submit">generate docs</button>
+  </form>
+  <p class="hint">or set a local path via the API (<code>POST /api/run</code> with <code>{"repo_path": "..."}</code>).</p>
+
+  <div id="run-status" class="run-status" hidden>
+    <h3>run <code id="run-id"></code></h3>
+    <ul id="event-log"></ul>
+    <p><a id="results-link" href="#">go to results &rarr;</a></p>
+  </div>
+</section>
+
+<section class="agents">
+  <h2>the agent team</h2>
+  <pre class="diagram">
+START
+  +--&gt; test_scout ------+
+  +--&gt; api_scanner -----+--&gt; reader --&gt; architect --&gt; diagrammer --&gt; writer --&gt; critic
+  +--&gt; config_reader ---+                                                          |
+                                                                                    v
+                                  (issues&gt;0 and cycles&lt;MAX ? editor --&gt; critic : END)
+  </pre>
+  <ul class="agent-grid">
+    <li><strong>test_scout</strong> &mdash; counts test cases per framework, splits public_api into tested/untested.</li>
+    <li><strong>api_scanner</strong> &mdash; HTTP routes (FastAPI/Flask/Express) + CLI commands (Click/Typer/argparse).</li>
+    <li><strong>config_reader</strong> &mdash; env vars + .env files. Secret-redacts API_KEY/SECRET/TOKEN/&hellip; values.</li>
+    <li><strong>reader</strong> &mdash; per-module RAG summary. Runs concurrently across modules.</li>
+    <li><strong>architect</strong> &mdash; structured architecture: components, edges, external deps, runtime topology.</li>
+    <li><strong>diagrammer</strong> &mdash; deterministic Mermaid + optional LLM beautify (validate-or-fallback).</li>
+    <li><strong>writer</strong> &mdash; drafts README, ARCHITECTURE, API, TUTORIAL. Citation rule enforced in every prompt.</li>
+    <li><strong>critic</strong> &mdash; verifies citations exist and ground; flags uncited claims and coverage gaps.</li>
+    <li><strong>editor</strong> &mdash; revises drafts issue-by-issue. Loop bounded to 2 cycles.</li>
+  </ul>
+</section>
+
+<script src="/static/progress.js"></script>
+{% endblock %}
