@@ -18,7 +18,7 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Callable, TypedDict
+from typing import Callable, TypedDict
 
 from ..llm import LLMError, Message, chat
 from ..scout import Manifest

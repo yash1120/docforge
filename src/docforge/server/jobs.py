@@ -10,8 +10,6 @@ final `done` or `error` event so the SSE consumer can close cleanly.
 from __future__ import annotations
 
 import asyncio
-import json
-import shutil
 import subprocess
 import tempfile
 import threading

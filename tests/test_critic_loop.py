@@ -11,8 +11,6 @@ from unittest.mock import patch
 import pytest
 
 from docforge.agents import (
-    Architecture,
-    ModuleSummary,
     compute_coverage,
     initial_state,
     parse_citations,

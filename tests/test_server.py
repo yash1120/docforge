@@ -10,7 +10,6 @@ import json
 import time
 from pathlib import Path
 from queue import Queue
-from typing import Optional
 
 import pytest
 from fastapi.testclient import TestClient

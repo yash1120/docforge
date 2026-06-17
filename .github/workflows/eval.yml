@@ -17,26 +17,39 @@ on:
 jobs:
   scoreboard:
     runs-on: ubuntu-latest
-    if: ${{ secrets.GROQ_API_KEY != '' && secrets.ANTHROPIC_API_KEY != '' }}
     timeout-minutes: 30
+    env:
+      GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
     steps:
       - uses: actions/checkout@v4
 
+      - name: Check API keys present
+        run: |
+          if [ -z "$GROQ_API_KEY" ] || [ -z "$ANTHROPIC_API_KEY" ]; then
+            echo "::warning::GROQ_API_KEY and/or ANTHROPIC_API_KEY not set in repo secrets — skipping eval."
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+          fi
+        id: keys
+
       - name: Set up Python
+        if: steps.keys.outputs.skip != 'true'
         uses: actions/setup-python@v5
         with:
           python-version: "3.11"
           cache: pip
 
       - name: Install
+        if: steps.keys.outputs.skip != 'true'
         run: |
           python -m pip install --upgrade pip
           pip install -e .
 
       - name: Run eval (PR branch)
+        if: steps.keys.outputs.skip != 'true'
         env:
-          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
-          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           DOCFORGE_MAX_PARALLEL: "2"
         run: |
           docforge-eval \
@@ -44,12 +57,14 @@ jobs:
             --out eval/scoreboard_pr.json
 
       - name: Fetch baseline scoreboard from main
+        if: steps.keys.outputs.skip != 'true'
         run: |
           git fetch origin main --depth 1
           git show origin/main:eval/scoreboard_data.json > eval/scoreboard_main.json \
             || echo '{}' > eval/scoreboard_main.json
 
       - name: Compare PR vs main, fail on > 2pp regression
+        if: steps.keys.outputs.skip != 'true'
         run: |
           python - <<'PY'
           import json, sys, pathlib
@@ -80,7 +95,7 @@ jobs:
           PY
 
       - name: Upload scoreboard artifact
-        if: always()
+        if: always() && steps.keys.outputs.skip != 'true'
         uses: actions/upload-artifact@v4
         with:
           name: scoreboard

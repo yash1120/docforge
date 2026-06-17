@@ -4,9 +4,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
-import pytest
 
-from docforge.indexer.chunk import Chunk, chunk_file
+from docforge.indexer.chunk import chunk_file
 
 
 def _write(p: Path, content: str) -> Path:

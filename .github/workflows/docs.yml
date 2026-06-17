@@ -1,5 +1,6 @@
 # The meta-flex: docforge regenerates its own docs/ on every push to main.
-# Skips itself when the only changed files are inside docs/ (avoids loops).
+# Skips itself when only files inside docs/ changed (avoids loops) or when no
+# API key is set in repo secrets (nothing to run).
 
 name: docs
 
@@ -19,38 +20,59 @@ jobs:
   regenerate:
     runs-on: ubuntu-latest
     if: github.actor != 'github-actions[bot]'
+    env:
+      GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
+      - name: Check API keys present
+        id: keys
+        run: |
+          if [ -z "$GROQ_API_KEY" ] && [ -z "$ANTHROPIC_API_KEY" ]; then
+            echo "::warning::No GROQ_API_KEY or ANTHROPIC_API_KEY in repo secrets — skipping doc regeneration."
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Set up Python
+        if: steps.keys.outputs.skip != 'true'
         uses: actions/setup-python@v5
         with:
           python-version: "3.11"
           cache: pip
 
       - name: Install docforge
+        if: steps.keys.outputs.skip != 'true'
         run: |
           python -m pip install --upgrade pip
           pip install -e .
 
       - name: Run docforge on itself
+        if: steps.keys.outputs.skip != 'true'
         env:
-          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
-          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           # Single worker in CI — Groq free-tier rate-limits get angry otherwise.
           DOCFORGE_MAX_PARALLEL: "2"
         run: docforge .
 
       - name: Move generated docs into ./docs
+        if: steps.keys.outputs.skip != 'true'
         run: |
-          mkdir -p docs
-          if [ -d .docforge/docs ]; then
-            cp -r .docforge/docs/* docs/
+          set -euo pipefail
+          if [ -d .docforge/docs ] && [ -n "$(ls -A .docforge/docs 2>/dev/null)" ]; then
+            mkdir -p docs
+            cp -r .docforge/docs/. docs/
+            echo "copied $(ls .docforge/docs | wc -l) file(s) into docs/"
+          else
+            echo "::warning::.docforge/docs is empty — agent team likely failed; check earlier step logs."
+            exit 0
           fi
 
       - name: Commit if changed
+        if: steps.keys.outputs.skip != 'true'
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"

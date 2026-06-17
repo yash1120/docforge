@@ -191,7 +191,7 @@ def _window_chunks(text: str, rel: str, lang: str, repo: str) -> list[Chunk]:
     i = 0
     while i < len(lines):
         seg = lines[i : i + WINDOW]
-        if not any(l.strip() for l in seg):
+        if not any(line.strip() for line in seg):
             i += STRIDE
             continue
         chunks.append(
