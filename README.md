@@ -1,6 +1,23 @@
+---
+title: docforge
+emoji: 📄
+colorFrom: yellow
+colorTo: green
+sdk: docker
+app_port: 8000
+pinned: false
+license: mit
+---
+
 # docforge
 
 > Point at any repo. Get an honest `docs/` folder back. Multi-agent. Grounded.
+
+<!-- The YAML block above configures this repo as a Hugging Face Docker Space
+     (sdk: docker, app_port: 8000). It's ignored by pip/Docker and renders as a
+     small metadata table on GitHub. Pushing this folder to an HF Space root
+     deploys it as-is. -->
+
 
 `docforge` runs a supervised team of small LLM agents over your codebase and produces a README, an `ARCHITECTURE.md`, an `API.md`, an onboarding tutorial, and a Mermaid diagram — with every non-trivial claim grounded in `[file:line]` citations and verified by a critic loop.
 
