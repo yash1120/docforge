@@ -13,6 +13,8 @@ license: mit
 
 > Point at any repo. Get an honest `docs/` folder back. Multi-agent. Grounded.
 
+**Repo:** https://github.com/yash1120/docforge · MIT licensed
+
 <!-- The YAML block above configures this repo as a Hugging Face Docker Space
      (sdk: docker, app_port: 8000). It's ignored by pip/Docker and renders as a
      small metadata table on GitHub. Pushing this folder to an HF Space root

@@ -115,11 +115,11 @@ The point of publishing these isn't humility theater — it's that a reviewer wh
 
 ## Try it
 
-> Before publishing this post, edit the three URLs below to point at your real repo, your live deploy, and the public scoreboard route. The text is otherwise ready.
+> Set the live-deploy URLs once your Space/host is up. The repo link is live.
 
-- Repo: `https://github.com/<your-handle>/docforge` — open-source, MIT.
-- Live: `https://<your-app>.fly.dev` — paste a public GitHub URL.
-- Scoreboard: `https://<your-app>.fly.dev/scoreboard` — current numbers, with judge reasoning.
+- Repo: https://github.com/yash1120/docforge — open-source, MIT.
+- Live: `https://<your-space>.hf.space` — paste a public GitHub URL.
+- Scoreboard: `https://<your-space>.hf.space/scoreboard` — current numbers, with judge reasoning.
 
 If you've shipped a doc generator with a real eval, I'd love to compare notes. The eval is what makes this real, and the eval is the part everyone skips.
 
