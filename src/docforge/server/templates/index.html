@@ -1,49 +1,319 @@
 {% extends "base.html" %}
-{% block title %}docforge — multi-agent docs generator{% endblock %}
+{% block title %}docforge — point at a repo, get an honest docs/ folder back{% endblock %}
+
 {% block content %}
 
+<!-- ============================ HERO ============================ -->
 <section class="hero">
-  <h1>point at a repo. get an honest <code>docs/</code> folder back.</h1>
+  <div class="hero-badges">
+    <span class="pill">LangGraph · 9 agents</span>
+    <span class="pill">grounded in <code>[file:line]</code></span>
+    <span class="pill">critic-verified</span>
+    <span class="pill">free-tier friendly</span>
+  </div>
+  <h1>Point at a repo.<br>Get an <span class="grad">honest</span> <code>docs/</code> folder back.</h1>
   <p class="lede">
-    Multi-agent pipeline (LangGraph + Groq + Chroma). Every non-trivial claim is grounded with <code>[file:line]</code> citations and verified by a critic loop.
+    docforge runs a supervised team of LLM agents over your codebase and writes a
+    README, an <code>ARCHITECTURE.md</code>, an API reference, a tutorial, and a
+    Mermaid diagram — where <strong>every non-trivial claim ends in a
+    <code>[file:line]</code> citation</strong>, and a critic loop verifies those
+    citations against the source before anything ships.
+  </p>
+  <div class="hero-cta">
+    <a class="btn btn-primary" href="/example">See a real run &rarr;</a>
+    <a class="btn btn-ghost" href="#run">Try it on your repo</a>
+    <a class="btn btn-ghost" href="#how">How it works</a>
+  </div>
+  <p class="hero-foot muted">
+    No marketing fluff below — every capability on this page is a fact about the
+    actual code, the same way docforge documents anything.
+  </p>
+</section>
+
+<!-- ============================ PROBLEM ============================ -->
+<section class="band">
+  <h2>The problem with one-shot doc generators</h2>
+  <p class="section-lede">
+    Feed a model some files, ask for a README, hope for the best. It reads
+    plausibly and breaks on contact with a real codebase:
+  </p>
+  <div class="three">
+    <div class="card">
+      <h3>Hallucinated APIs</h3>
+      <p>It invents a function that <em>sounds</em> right. You can't tell without grepping the source yourself.</p>
+    </div>
+    <div class="card">
+      <h3>Missed subsystems</h3>
+      <p>An entire module never gets mentioned because its file wasn't in the top-k most-similar chunks.</p>
+    </div>
+    <div class="card">
+      <h3>Diagrams that lie</h3>
+      <p>The architecture reflects what an app like this <em>usually</em> looks like — not what your code actually does.</p>
+    </div>
+  </div>
+  <p class="section-lede">
+    docforge's bet: a small team of focused agents, every claim grounded, and a
+    step that <strong>actually verifies</strong> before publishing.
+  </p>
+</section>
+
+<!-- ============================ HOW IT WORKS ============================ -->
+<section id="how" class="band">
+  <h2>How it works</h2>
+  <p class="section-lede">
+    A LangGraph <code>StateGraph</code>. Three static-analysis scouts fan out in
+    parallel from the start; the LLM agents then run as a chain, ending in a
+    bounded critic&hairsp;&rarr;&hairsp;editor loop.
   </p>
 
-  <form id="run-form" class="run-form">
-    <label for="git_url">GitHub URL</label>
-    <input id="git_url" name="git_url" type="url" placeholder="https://github.com/owner/repo" autocomplete="off">
-    <button type="submit">generate docs</button>
-  </form>
-  <p class="hint">or set a local path via the API (<code>POST /api/run</code> with <code>{"repo_path": "..."}</code>).</p>
+  <div class="mermaid-wrap">
+    <pre class="mermaid">
+flowchart LR
+    START((start)) --> TS[test_scout]
+    START --> AS[api_scanner]
+    START --> CR[config_reader]
+    TS --> R[reader]
+    AS --> R
+    CR --> R
+    R --> A[architect]
+    A --> D[diagrammer]
+    D --> W[writer]
+    W --> C{critic}
+    C -- "issues &amp; cycles&lt;2" --> E[editor]
+    E --> C
+    C -- "clean / capped" --> DONE(((docs/)))
+    </pre>
+  </div>
 
+  <div class="pipeline-steps">
+    <div class="pstep"><span class="pnum">1</span><div><strong>Scout</strong> walks the tree and builds a <code>Manifest</code> — languages, frameworks, entry points, license, public API. <span class="cite">scout/manifest.py</span></div></div>
+    <div class="pstep"><span class="pnum">2</span><div><strong>Index</strong> chunks every file with tree-sitter at function/class granularity, embeds with <code>bge-small</code>, and stores in Chroma keyed by <code>file:line</code>. <span class="cite">indexer/index.py</span></div></div>
+    <div class="pstep"><span class="pnum">3</span><div><strong>Parallel scouts</strong> (no LLM) extract tests, HTTP/CLI routes, and env vars — disjoint state keys, so the merge never conflicts. <span class="cite">agents/state.py:88</span></div></div>
+    <div class="pstep"><span class="pnum">4</span><div><strong>Reader &rarr; Architect &rarr; Diagrammer &rarr; Writer</strong> turn retrieval into module summaries, a structured architecture, valid Mermaid, and four grounded docs. <span class="cite">agents/supervisor.py:89</span></div></div>
+    <div class="pstep"><span class="pnum">5</span><div><strong>Critic &rarr; Editor</strong> verify citations + coverage and revise — capped at <code>MAX_CRITIC_CYCLES = 2</code>. <span class="cite">agents/supervisor.py:43</span></div></div>
+  </div>
+</section>
+
+<!-- ============================ AGENTS ============================ -->
+<section id="agents" class="band">
+  <h2>Meet the team</h2>
+  <p class="section-lede">Nine agents, each with one job. Boring and small beats clever and broad.</p>
+
+  <div class="agent-tag-row">
+    <span class="tag tag-static">3 static scouts · no LLM</span>
+    <span class="tag tag-llm">5 LLM agents</span>
+    <span class="tag tag-loop">1 critic loop</span>
+  </div>
+
+  <div class="agent-grid">
+    <article class="agent static">
+      <h3>test_scout</h3>
+      <p>Detects the test framework (pytest / unittest / jest / vitest / go / cargo), counts cases, and splits the public API into tested vs untested symbols.</p>
+      <span class="cite">agents/test_scout.py</span>
+    </article>
+    <article class="agent static">
+      <h3>api_scanner</h3>
+      <p>Regex-scans for HTTP routes (FastAPI / Flask / Express) and CLI commands (Click / Typer / argparse). Every route carries a <code>file:line</code>.</p>
+      <span class="cite">agents/api_scanner.py</span>
+    </article>
+    <article class="agent static">
+      <h3>config_reader</h3>
+      <p>Finds env-var reads and <code>.env</code> files. <strong>Redacts</strong> secret-looking values (API_KEY / SECRET / TOKEN&hellip;) before they touch state.</p>
+      <span class="cite">agents/config_reader.py:52</span>
+    </article>
+    <article class="agent llm">
+      <h3>reader</h3>
+      <p>Runs RAG retrieval per top-level module and writes a citation-grounded <code>ModuleSummary</code>. Fans out across modules concurrently.</p>
+      <span class="cite">agents/reader.py</span>
+    </article>
+    <article class="agent llm">
+      <h3>architect</h3>
+      <p>Rolls summaries into a structured architecture — components, edges, external deps, runtime topology. Drops edges that point at non-existent components.</p>
+      <span class="cite">agents/architect.py</span>
+    </article>
+    <article class="agent llm">
+      <h3>diagrammer</h3>
+      <p>Renders Mermaid <em>deterministically first</em> (always valid). An optional LLM beautify pass is kept only if it also passes validation.</p>
+      <span class="cite">agents/diagrammer.py</span>
+    </article>
+    <article class="agent llm">
+      <h3>writer</h3>
+      <p>Drafts README, ARCHITECTURE, API, TUTORIAL concurrently. Every prompt enforces the inline <code>[file:line]</code> citation rule.</p>
+      <span class="cite">agents/writer.py:19</span>
+    </article>
+    <article class="agent loop">
+      <h3>critic</h3>
+      <p>Three checks: deterministic citation validity, LLM grounding (does the cited code support the claim?), and deterministic coverage of the public API.</p>
+      <span class="cite">agents/critic.py</span>
+    </article>
+    <article class="agent loop">
+      <h3>editor</h3>
+      <p>Revises only the docs with open issues. Loops back to the critic until issues hit zero or the 2-cycle cap.</p>
+      <span class="cite">agents/editor.py</span>
+    </article>
+  </div>
+  <p class="muted small">There's also a single-agent <strong>baseline</strong> generator — deliberately simple — that every multi-agent improvement is measured against. <span class="cite">agents/baseline.py</span></p>
+</section>
+
+<!-- ============================ GROUNDING ============================ -->
+<section class="band band-alt">
+  <h2>Grounded &amp; verified — the part that matters</h2>
+  <div class="two">
+    <div>
+      <h3>Every claim cites <code>[file:line]</code></h3>
+      <p>The Writer's prompts share one hard rule: any non-trivial statement about
+      behaviour must end with a citation like <code>[src/api.py:42]</code> or a
+      range, using citations that actually appear in the retrieved context.</p>
+      <p>Chunks are stored keyed by their exact line range, so a citation is a
+      promise you can click through and check.</p>
+    </div>
+    <div>
+      <h3>The critic loop</h3>
+      <ul class="checks">
+        <li><span class="ok">1</span> <strong>Citation validity</strong> — does the file exist? Is the line range in bounds? (deterministic, free)</li>
+        <li><span class="ok">2</span> <strong>Grounding</strong> — does the cited code actually support the claim? (LLM, parallel, capped at 20/cycle)</li>
+        <li><span class="ok">3</span> <strong>Coverage</strong> — is every public symbol mentioned somewhere? (deterministic, word-boundary)</li>
+      </ul>
+      <p class="muted small">Flagged issues go to the Editor, which revises and re-submits — bounded to 2 cycles so it always terminates. <span class="cite">agents/critic.py</span></p>
+    </div>
+  </div>
+</section>
+
+<!-- ============================ EVAL ============================ -->
+<section class="band">
+  <h2>Held to a real eval</h2>
+  <p class="section-lede">
+    Most doc generators show one cherry-picked output. docforge scores itself on
+    five axes, with the judge model <strong>locked in code</strong> to
+    <code>claude-sonnet-4-6</code> so nobody can swap in a cheaper model and
+    inflate the numbers. <span class="cite">evals/judge.py:27</span>
+  </p>
+  <table class="axes">
+    <thead><tr><th>Axis</th><th>Measures</th><th>How</th></tr></thead>
+    <tbody>
+      <tr><td>Factuality</td><td>share of cited claims the code actually supports</td><td><span class="tag-sm llm">LLM</span> sampled, capped at 12/repo</td></tr>
+      <tr><td>Coverage</td><td>share of ground-truth claims surfaced in the docs</td><td><span class="tag-sm llm">LLM</span> every claim</td></tr>
+      <tr><td>Completeness</td><td>install / run / entry-point / deps / license present</td><td><span class="tag-sm det">deterministic</span></td></tr>
+      <tr><td>Citation density</td><td>citations per 100 words</td><td><span class="tag-sm det">deterministic</span></td></tr>
+      <tr><td>Readability</td><td>prose quality, 1&ndash;5</td><td><span class="tag-sm llm">LLM</span> per doc</td></tr>
+    </tbody>
+  </table>
+  <p class="muted small">Testset format: <code>eval/testset/&lt;repo&gt;/claims.jsonl</code> — hand-labelled ground-truth claims. Run it with <code>docforge-eval</code>. The eval-on-PR action blocks regressions &gt; 2pp.</p>
+</section>
+
+<!-- ============================ REAL RUN ============================ -->
+<section class="band band-alt">
+  <h2>A real run — warts and all</h2>
+  <p class="section-lede">docforge documented the <strong>daimon</strong> repo (8,158 LOC). The honest scoreboard:</p>
+  <div class="stat-row">
+    <div class="stat"><div class="stat-num">467</div><div class="stat-label">chunks indexed</div></div>
+    <div class="stat"><div class="stat-num">29</div><div class="stat-label">routes found</div></div>
+    <div class="stat"><div class="stat-num">40%</div><div class="stat-label">factuality (cycle 2)</div></div>
+    <div class="stat"><div class="stat-num">47%</div><div class="stat-label">coverage</div></div>
+    <div class="stat"><div class="stat-num">28</div><div class="stat-label">issues flagged</div></div>
+  </div>
+  <div class="callout callout-warn">
+    <strong>The honest part:</strong> the README and TUTORIAL hit a Groq free-tier
+    rate limit (HTTP 429) mid-run. The Writer's error fallback leaked the error
+    string into the README, and the Editor introduced hallucinated citations into
+    the TUTORIAL — <em>all of which the critic caught and flagged</em>. We ship
+    the failure case instead of hiding it. <a href="/example">See the full run &rarr;</a>
+  </div>
+</section>
+
+<!-- ============================ RUN IT ============================ -->
+<section id="run" class="band">
+  <h2>Try it on your repo</h2>
+
+  {% if provider == 'none' %}
+  <div class="callout">
+    This instance has <strong>no LLM key configured</strong>, so live runs are
+    disabled. Everything else still works —
+    <a href="/example">see a real run on daimon &rarr;</a>
+    <p class="muted small">To enable live runs, set <code>GROQ_API_KEY</code> (or <code>ANTHROPIC_API_KEY</code>) on the server and reload.</p>
+  </div>
+  {% else %}
+  <p class="section-lede">Paste a public GitHub URL. docforge clones it, indexes it, and runs the full team — streamed live.</p>
+  <form id="run-form" class="run-form">
+    <input id="git_url" name="git_url" type="url" placeholder="https://github.com/owner/repo" autocomplete="off" required>
+    <button type="submit">Generate docs</button>
+  </form>
   <div id="run-status" class="run-status" hidden>
     <h3>run <code id="run-id"></code></h3>
     <ul id="event-log"></ul>
     <p><a id="results-link" href="#">go to results &rarr;</a></p>
   </div>
+  {% endif %}
+
+  <h3 class="mt">Or run it locally</h3>
+  <pre class="code"><code>pip install -e .
+
+docforge ./path/to/repo          <span class="cmt"># full pipeline -> .docforge/docs/</span>
+docforge-serve                   <span class="cmt"># this web UI on :8000</span>
+docforge-eval --testset eval/testset   <span class="cmt"># the 5-axis scoreboard</span></code></pre>
 </section>
 
-<section class="agents">
-  <h2>the agent team</h2>
-  <pre class="diagram">
-START
-  +--&gt; test_scout ------+
-  +--&gt; api_scanner -----+--&gt; reader --&gt; architect --&gt; diagrammer --&gt; writer --&gt; critic
-  +--&gt; config_reader ---+                                                          |
-                                                                                    v
-                                  (issues&gt;0 and cycles&lt;MAX ? editor --&gt; critic : END)
-  </pre>
-  <ul class="agent-grid">
-    <li><strong>test_scout</strong> &mdash; counts test cases per framework, splits public_api into tested/untested.</li>
-    <li><strong>api_scanner</strong> &mdash; HTTP routes (FastAPI/Flask/Express) + CLI commands (Click/Typer/argparse).</li>
-    <li><strong>config_reader</strong> &mdash; env vars + .env files. Secret-redacts API_KEY/SECRET/TOKEN/&hellip; values.</li>
-    <li><strong>reader</strong> &mdash; per-module RAG summary. Runs concurrently across modules.</li>
-    <li><strong>architect</strong> &mdash; structured architecture: components, edges, external deps, runtime topology.</li>
-    <li><strong>diagrammer</strong> &mdash; deterministic Mermaid + optional LLM beautify (validate-or-fallback).</li>
-    <li><strong>writer</strong> &mdash; drafts README, ARCHITECTURE, API, TUTORIAL. Citation rule enforced in every prompt.</li>
-    <li><strong>critic</strong> &mdash; verifies citations exist and ground; flags uncited claims and coverage gaps.</li>
-    <li><strong>editor</strong> &mdash; revises drafts issue-by-issue. Loop bounded to 2 cycles.</li>
-  </ul>
+<!-- ============================ STACK + DEPLOY ============================ -->
+<section class="band band-alt">
+  <div class="two">
+    <div>
+      <h2>Tech stack</h2>
+      <ul class="stack">
+        <li><strong>Orchestration</strong> — LangGraph <code>StateGraph</code></li>
+        <li><strong>Inference</strong> — Groq (Llama 3.3 70B); Anthropic fallback</li>
+        <li><strong>Parsing</strong> — tree-sitter (py / ts / js)</li>
+        <li><strong>Embeddings</strong> — fastembed · <code>bge-small-en-v1.5</code></li>
+        <li><strong>Vectors</strong> — Chroma (per-repo, cosine HNSW)</li>
+        <li><strong>Eval judge</strong> — Claude Sonnet 4.6 (locked)</li>
+        <li><strong>Web</strong> — FastAPI · Jinja2 · SSE · uvicorn</li>
+      </ul>
+    </div>
+    <div>
+      <h2>Deploy anywhere</h2>
+      <p>One Dockerfile, binds <code>$PORT</code>. Ships with configs for:</p>
+      <ul class="stack">
+        <li><strong>Fly.io</strong> — <code>fly deploy</code> (<code>fly.toml</code>)</li>
+        <li><strong>Render</strong> — one-click Blueprint (<code>render.yaml</code>)</li>
+        <li><strong>Railway</strong> — auto-detects the Dockerfile</li>
+        <li><strong>Docker / compose</strong> — <code>docker compose up</code></li>
+      </ul>
+      <p class="muted small">The site works with <strong>no API key</strong>: explainer, <code>/example</code>, and <code>/scoreboard</code> all render statically. See <code>DEPLOY.md</code>.</p>
+    </div>
+  </div>
 </section>
 
-<script src="/static/progress.js"></script>
+<!-- ============================ FAQ ============================ -->
+<section class="band">
+  <h2>FAQ</h2>
+  <details><summary>Does it work on big repos?</summary>
+    <p>Scout enforces a file budget, the Reader gets per-module RAG slices, and the Architect sees summaries only. ~8k LOC indexes in minutes; bump RAM for &gt;50k LOC. Truncation is reported honestly in the output.</p></details>
+  <details><summary>What languages?</summary>
+    <p>Tree-sitter handles Python, TypeScript, and JavaScript at function granularity. Everything else falls back to a sliding-window chunker, so any repo produces output — with a partial-support note.</p></details>
+  <details><summary>Will it leak my secrets?</summary>
+    <p>No. ConfigReader redacts values for secret-looking names, and every value from a live <code>.env</code> is redacted regardless — only the variable's <em>presence</em> is recorded. <span class="cite">agents/config_reader.py:52</span></p></details>
+  <details><summary>How is this different from asking an LLM for a README?</summary>
+    <p>The grounding (<code>[file:line]</code> on every claim), the critic loop that verifies those citations against the actual code, and a measurable eval with a locked judge. A single LLM call gives you none of those.</p></details>
+</section>
+
+<section class="closing">
+  <h2>See it for yourself</h2>
+  <div class="hero-cta">
+    <a class="btn btn-primary" href="/example">View a real run &rarr;</a>
+    <a class="btn btn-ghost" href="/scoreboard">Eval scoreboard</a>
+    <a class="btn btn-ghost" href="https://github.com/" target="_blank" rel="noopener">Star on GitHub</a>
+  </div>
+</section>
+
+{% endblock %}
+
+{% block head %}
+<script type="module">
+  import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs';
+  mermaid.initialize({ startOnLoad: true, theme: 'dark', securityLevel: 'loose',
+    themeVariables: { fontSize: '14px' } });
+</script>
+{% endblock %}
+
+{% block scripts %}
+{% if provider != 'none' %}<script src="/static/progress.js"></script>{% endif %}
 {% endblock %}

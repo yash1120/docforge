@@ -1,15 +1,34 @@
 {% extends "base.html" %}
-{% block title %}showcase &middot; docforge{% endblock %}
+{% block title %}showcase · docforge{% endblock %}
 {% block content %}
 
-<section class="showcase">
-  <h1>showcase</h1>
-  <p class="lede">Five OSS repos run through docforge end-to-end. Generated docs, the critic verdict, and side-by-side scores.</p>
+<section class="band">
+  <h1>Showcase</h1>
+  <p class="lede">Repos run through docforge end-to-end — generated docs, the critic verdict, and the scores.</p>
 
+  {% if example %}
+  <a class="feature-card" href="/example">
+    <div class="feature-tag">featured · live example</div>
+    <h2><code>{{ example.repo }}</code></h2>
+    <p>{{ example.repo_blurb }}</p>
+    <ul class="badges">
+      <li>factuality <strong>{{ (example.critique.factuality * 100)|round|int }}%</strong></li>
+      <li>coverage <strong>{{ (example.critique.coverage * 100)|round|int }}%</strong></li>
+      <li>{{ example.scouts.http_routes }} routes</li>
+      <li>{{ example.chunks }} chunks</li>
+    </ul>
+    <span class="feature-cta">Open the full run &rarr;</span>
+  </a>
+  {% endif %}
+</section>
+
+<section class="band band-alt">
+  <h2>Eval lineup</h2>
   {% if not scoreboard %}
     <div class="placeholder">
-      <p>No real-eval data yet. After running <code>docforge-eval</code>, each entry in <code>eval/scoreboard_data.json</code> appears here.</p>
+      <p>The full eval scoreboard populates once <code>docforge-eval</code> runs against the testset.</p>
       <p>Target lineup (per the plan): FastAPI (Python), a TS library, ripgrep (Rust), Hugo (Go), Next.js (polyglot).</p>
+      <p class="muted small">Generate it: <code>docforge-eval --testset eval/testset --out eval/scoreboard_data.json</code></p>
     </div>
   {% else %}
     <div class="card-grid">
@@ -26,5 +45,4 @@
     </div>
   {% endif %}
 </section>
-
 {% endblock %}

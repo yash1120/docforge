@@ -31,14 +31,28 @@ RUN pip install --upgrade pip wheel \
 # Now copy the project + install in editable mode.
 COPY src /app/src
 COPY README.md /app/README.md
+# Baked-in demo data so the site shows real output without an API key, plus the
+# eval testset for the scoreboard route.
+COPY examples /app/examples
+COPY eval /app/eval
 RUN pip install -e .
+
+# World-writable cache dir so the pre-warmed model (baked at build time as root)
+# is still found at runtime on hosts that run the container as a non-root user
+# (e.g. Hugging Face Spaces runs as uid 1000). Keeps build == runtime cache path.
+ENV HF_HOME=/app/.cache \
+    XDG_CACHE_HOME=/app/.cache \
+    FASTEMBED_CACHE_PATH=/app/.cache/fastembed
+RUN mkdir -p /app/.cache/fastembed && chmod -R 777 /app/.cache
 
 # Pre-warm the embedding model so first request isn't a 90-second wait.
 RUN python -c "from fastembed import TextEmbedding; TextEmbedding(model_name='BAAI/bge-small-en-v1.5')" \
     || echo "embed model warm-up skipped"
 
+# $PORT is injected by most PaaS (Render, Railway, Heroku, Fly). Default 8000.
+ENV PORT=8000
 EXPOSE 8000
 
-# Default to the production-ish single-worker setup. Fly autoscales by machine,
-# not by uvicorn worker, so workers=1 is the right default here.
-CMD ["uvicorn", "docforge.server.app:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "1"]
+# Shell form so $PORT expands at runtime. docforge-serve reads $PORT itself.
+# Single worker: the pipeline is memory-heavy and the platform scales by machine.
+CMD ["sh", "-c", "docforge-serve --host 0.0.0.0 --port ${PORT:-8000}"]

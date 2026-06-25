@@ -1,0 +1,39 @@
+{
+  "repo": "daimon",
+  "repo_blurb": "A philosophy web app: daily letters from Seneca, Marcus Aurelius, Nietzsche, Camus, and Simone Weil, grounded via RAG in their works. LangGraph + Groq + FastAPI + Three.js.",
+  "primary_language": "Python",
+  "loc": 8158,
+  "code_files": 51,
+  "chunks": 467,
+  "files_chunked": 72,
+  "index_seconds": 740,
+  "team_seconds": 79,
+  "total_seconds": 823,
+  "provider": "groq (llama-3.3-70b-versatile)",
+  "scouts": {
+    "test_files": 3,
+    "test_cases": 8,
+    "frameworks": ["pytest"],
+    "routes_total": 29,
+    "http_routes": 20,
+    "cli_commands": 9,
+    "env_vars": 18
+  },
+  "critique": {
+    "cycle": 2,
+    "factuality": 0.40,
+    "coverage": 0.467,
+    "citation_density": 3.21,
+    "issues": 28,
+    "broken_citation": 10,
+    "ungrounded": 6,
+    "coverage_missing": 10,
+    "uncited_claim": 2
+  },
+  "wins": [
+    "API.md: 20 HTTP routes + 9 CLI commands extracted by APIScanner, every row carrying a real file:line citation.",
+    "ARCHITECTURE.md: grounded component description with valid, render-checked Mermaid.",
+    "TestScout flagged 14 untested public endpoints (e.g. list_philosophers, generate, salon) against 8 passing tests."
+  ],
+  "failure_note": "README.md and TUTORIAL.md hit the Groq free-tier rate limit (HTTP 429, TPM cap 12000) mid-run. The Writer's error fallback leaked the raw error string into the README body, and the Editor introduced hallucinated citations (database.py, request.py) into TUTORIAL.md while trying to fix coverage. The Critic caught all 10 broken citations deterministically. This is an honest, documented failure mode — see eval/failures.md. Fix is rate-limit-aware retry with backoff, on the v2 list."
+}

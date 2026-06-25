@@ -8,7 +8,8 @@ __pycache__
 .git
 .github
 tests
-eval
+# NOTE: eval/ and examples/ are intentionally NOT ignored — the image serves
+# the scoreboard testset and the baked-in demo run.
 .docforge
 .docforge_runs
 chroma_db

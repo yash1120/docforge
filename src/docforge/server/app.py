@@ -1,8 +1,10 @@
-"""FastAPI app for docforge — landing page, run-a-repo, results, scoreboard, showcase."""
+"""FastAPI app for docforge — explainer landing, run-a-repo, results, example,
+scoreboard, showcase."""
 
 from __future__ import annotations
 
 import json
+import os
 from pathlib import Path
 from typing import Optional
 
@@ -25,9 +27,22 @@ HERE = Path(__file__).parent
 TEMPLATES = Jinja2Templates(directory=str(HERE / "templates"))
 STATIC_DIR = HERE / "static"
 
-# Eval scoreboard path (relative to CWD when serving).
-# Override via env in deploys if needed.
-SCOREBOARD_PATH = Path("eval/scoreboard_data.json")
+# Repo-root relative paths (resolved from CWD when serving; overridable via env).
+SCOREBOARD_PATH = Path(os.environ.get("DOCFORGE_SCOREBOARD", "eval/scoreboard_data.json"))
+EXAMPLES_DIR = Path(os.environ.get("DOCFORGE_EXAMPLES", "examples"))
+
+
+def _provider() -> str:
+    """Which LLM provider is configured (groq | anthropic | none)."""
+    try:
+        from ..llm import provider_in_use
+        return provider_in_use()
+    except Exception:
+        if os.environ.get("GROQ_API_KEY"):
+            return "groq"
+        if os.environ.get("ANTHROPIC_API_KEY"):
+            return "anthropic"
+        return "none"
 
 
 def create_app(registry: Optional[JobRegistry] = None) -> FastAPI:
@@ -41,7 +56,17 @@ def create_app(registry: Optional[JobRegistry] = None) -> FastAPI:
 
     @app.get("/", response_class=HTMLResponse)
     async def index(request: Request):
-        return TEMPLATES.TemplateResponse(request, "index.html", {})
+        return TEMPLATES.TemplateResponse(
+            request, "index.html",
+            {"provider": _provider(), "has_example": _example_names()},
+        )
+
+    @app.get("/example", response_class=HTMLResponse)
+    async def example_page(request: Request):
+        ex = _load_example("daimon")
+        if not ex:
+            raise HTTPException(404, "no baked example found")
+        return TEMPLATES.TemplateResponse(request, "example.html", {"ex": ex})
 
     @app.get("/run/{job_id}", response_class=HTMLResponse)
     async def results_page(request: Request, job_id: str):
@@ -58,7 +83,10 @@ def create_app(registry: Optional[JobRegistry] = None) -> FastAPI:
     @app.get("/showcase", response_class=HTMLResponse)
     async def showcase_page(request: Request):
         data = _load_scoreboard()
-        return TEMPLATES.TemplateResponse(request, "showcase.html", {"scoreboard": data})
+        return TEMPLATES.TemplateResponse(
+            request, "showcase.html",
+            {"scoreboard": data, "example": _load_example("daimon")},
+        )
 
     # ---- JSON / SSE APIs ------------------------------------------------
 
@@ -66,6 +94,12 @@ def create_app(registry: Optional[JobRegistry] = None) -> FastAPI:
     async def start_run(payload: StartPayload):
         if not payload.git_url and not payload.repo_path:
             raise HTTPException(400, "must provide git_url or repo_path")
+        if _provider() == "none":
+            raise HTTPException(
+                503,
+                "No LLM provider configured on this server. The live run needs a "
+                "GROQ_API_KEY (or ANTHROPIC_API_KEY). See /example for a real run.",
+            )
         state = reg.create_job(JobRequest(
             repo_path=payload.repo_path, git_url=payload.git_url,
         ))
@@ -97,13 +131,17 @@ def create_app(registry: Optional[JobRegistry] = None) -> FastAPI:
             raise HTTPException(404, "not found")
         return job.drafts[name]
 
+    @app.get("/api/example")
+    async def example_json():
+        return JSONResponse(_load_example("daimon") or {})
+
     @app.get("/api/scoreboard")
     async def scoreboard_json():
         return JSONResponse(_load_scoreboard() or {})
 
     @app.get("/api/health")
     async def health():
-        return {"status": "ok", "jobs": len(reg.all())}
+        return {"status": "ok", "provider": _provider(), "jobs": len(reg.all())}
 
     return app
 
@@ -115,6 +153,33 @@ def _load_scoreboard() -> Optional[dict]:
         return json.loads(SCOREBOARD_PATH.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError):
         return None
+
+
+def _example_names() -> list[str]:
+    if not EXAMPLES_DIR.is_dir():
+        return []
+    return [p.name for p in EXAMPLES_DIR.iterdir() if p.is_dir() and (p / "run.json").exists()]
+
+
+def _load_example(name: str) -> Optional[dict]:
+    """Load a baked example run: run.json metadata + the generated markdown docs."""
+    base = EXAMPLES_DIR / name
+    run = base / "run.json"
+    if not run.is_file():
+        return None
+    try:
+        data = json.loads(run.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return None
+    docs: dict[str, str] = {}
+    for md in ("README.md", "ARCHITECTURE.md", "API.md", "TUTORIAL.md"):
+        p = base / md
+        if p.is_file():
+            docs[md] = p.read_text(encoding="utf-8", errors="ignore")
+    diagram = base / "diagram.mmd"
+    data["docs"] = docs
+    data["diagram_mmd"] = diagram.read_text(encoding="utf-8", errors="ignore") if diagram.is_file() else ""
+    return data
 
 
 # Default app instance for `uvicorn docforge.server.app:app`

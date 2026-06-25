@@ -69,8 +69,43 @@ def client(tmp_path: Path, monkeypatch) -> TestClient:
     from docforge.server import app as server_app
     sb_path = tmp_path / "scoreboard_data.json"
     monkeypatch.setattr(server_app, "SCOREBOARD_PATH", sb_path)
+    # Pretend a provider is configured so /api/run doesn't 503 (the StubRegistry
+    # never actually calls an LLM). The 503-when-none path has its own test.
+    monkeypatch.setattr(server_app, "_provider", lambda: "groq")
     reg = StubRegistry()
     return TestClient(create_app(reg))
+
+
+@pytest.fixture
+def client_no_provider(tmp_path: Path, monkeypatch) -> TestClient:
+    from docforge.server import app as server_app
+    monkeypatch.setattr(server_app, "SCOREBOARD_PATH", tmp_path / "scoreboard_data.json")
+    monkeypatch.setattr(server_app, "_provider", lambda: "none")
+    return TestClient(create_app(StubRegistry()))
+
+
+@pytest.fixture
+def client_with_example(tmp_path: Path, monkeypatch) -> TestClient:
+    """A client with a baked example dir so /example renders."""
+    from docforge.server import app as server_app
+    ex = tmp_path / "examples" / "daimon"
+    ex.mkdir(parents=True)
+    (ex / "run.json").write_text(json.dumps({
+        "repo": "daimon", "repo_blurb": "demo", "primary_language": "Python",
+        "loc": 8158, "code_files": 51, "chunks": 467, "files_chunked": 72,
+        "index_seconds": 740, "team_seconds": 79, "total_seconds": 823, "provider": "groq",
+        "scouts": {"test_files": 3, "test_cases": 8, "frameworks": ["pytest"],
+                   "routes_total": 29, "http_routes": 20, "cli_commands": 9, "env_vars": 18},
+        "critique": {"cycle": 2, "factuality": 0.40, "coverage": 0.467,
+                     "citation_density": 3.21, "issues": 28, "broken_citation": 10,
+                     "ungrounded": 6, "coverage_missing": 10, "uncited_claim": 2},
+        "wins": ["API.md route table"], "failure_note": "rate limit 429",
+    }))
+    (ex / "API.md").write_text("# API\n\n`run()` [src/x.py:1]\n")
+    (ex / "diagram.mmd").write_text("flowchart TD\n  a[\"a\"]\n")
+    monkeypatch.setattr(server_app, "EXAMPLES_DIR", tmp_path / "examples")
+    monkeypatch.setattr(server_app, "_provider", lambda: "groq")
+    return TestClient(create_app(StubRegistry()))
 
 
 @pytest.fixture
@@ -218,3 +253,57 @@ def test_scoreboard_api_returns_empty_dict_when_no_file(client):
     r = client.get("/api/scoreboard")
     assert r.status_code == 200
     assert r.json() == {}
+
+
+# ---- provider gating + example route ------------------------------------
+
+
+def test_run_blocked_with_503_when_no_provider(client_no_provider):
+    r = client_no_provider.post("/api/run", json={"git_url": "https://github.com/o/r"})
+    assert r.status_code == 503
+    assert "no llm provider" in r.json()["detail"].lower()
+
+
+def test_index_shows_disabled_notice_when_no_provider(client_no_provider):
+    r = client_no_provider.get("/")
+    assert r.status_code == 200
+    # The live-run form is hidden; the no-key notice + example link is shown.
+    assert 'id="run-form"' not in r.text
+    assert "/example" in r.text
+
+
+def test_health_reports_provider(client_no_provider):
+    r = client_no_provider.get("/api/health")
+    assert r.json()["provider"] == "none"
+
+
+def test_example_page_renders(client_with_example):
+    r = client_with_example.get("/example")
+    assert r.status_code == 200
+    assert "daimon" in r.text
+    assert "40" in r.text  # factuality %
+    assert "API.md" in r.text
+
+
+def test_example_api_returns_run(client_with_example):
+    r = client_with_example.get("/api/example")
+    assert r.status_code == 200
+    body = r.json()
+    assert body["repo"] == "daimon"
+    assert "API.md" in body["docs"]
+    assert body["diagram_mmd"].startswith("flowchart")
+
+
+def test_example_page_404_when_no_example(tmp_path: Path, monkeypatch):
+    from docforge.server import app as server_app
+    monkeypatch.setattr(server_app, "EXAMPLES_DIR", tmp_path / "nope")
+    monkeypatch.setattr(server_app, "_provider", lambda: "none")
+    c = TestClient(create_app(StubRegistry()))
+    assert c.get("/example").status_code == 404
+
+
+def test_showcase_features_example(client_with_example):
+    r = client_with_example.get("/showcase")
+    assert r.status_code == 200
+    assert "feature-card" in r.text
+    assert "daimon" in r.text

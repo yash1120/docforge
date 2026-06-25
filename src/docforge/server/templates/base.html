@@ -3,17 +3,21 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>{% block title %}docforge{% endblock %}</title>
+  <title>{% block title %}docforge — grounded, multi-agent docs generator{% endblock %}</title>
+  <meta name="description" content="docforge points a team of LLM agents at any repo and writes an honest docs/ folder — every claim grounded in [file:line] citations and verified by a critic loop.">
   <link rel="stylesheet" href="/static/style.css">
+  {% block head %}{% endblock %}
 </head>
 <body>
   <header class="topbar">
-    <a class="brand" href="/">docforge</a>
+    <a class="brand" href="/"><span class="brand-mark">&#9670;</span> docforge</a>
     <nav>
-      <a href="/">try</a>
-      <a href="/showcase">showcase</a>
-      <a href="/scoreboard">scoreboard</a>
-      <a href="https://github.com/" target="_blank" rel="noopener">github</a>
+      <a href="/#how">How it works</a>
+      <a href="/#agents">Agents</a>
+      <a href="/example">Live example</a>
+      <a href="/scoreboard">Scoreboard</a>
+      <a href="/#run">Try it</a>
+      <a class="nav-gh" href="https://github.com/" target="_blank" rel="noopener">GitHub</a>
     </nav>
   </header>
 
@@ -22,7 +26,19 @@
   </main>
 
   <footer>
-    <p>multi-agent docs generator &middot; mit licensed &middot; built with LangGraph + Groq + Chroma</p>
+    <div class="footer-inner">
+      <div>
+        <strong>docforge</strong> — multi-agent docs generator.
+        <span class="muted">MIT licensed · built with LangGraph · Groq · tree-sitter · Chroma · FastAPI.</span>
+      </div>
+      <div class="footer-links">
+        <a href="/example">Example</a>
+        <a href="/scoreboard">Scoreboard</a>
+        <a href="/showcase">Showcase</a>
+        <a href="/api/health">Health</a>
+      </div>
+    </div>
   </footer>
+  {% block scripts %}{% endblock %}
 </body>
 </html>

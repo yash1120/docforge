@@ -1,0 +1,21 @@
+# Render.com Blueprint. Push to GitHub, then "New +" -> "Blueprint" -> pick this repo.
+# Render injects $PORT automatically; the Docker CMD honours it.
+services:
+  - type: web
+    name: docforge
+    runtime: docker
+    # 'starter' has ~512MB-2GB depending on plan. Indexing a large repo wants
+    # headroom — bump if you OOM. The baked-in /example works on any size.
+    plan: starter
+    healthCheckPath: /api/health
+    autoDeploy: true
+    envVars:
+      - key: DOCFORGE_MAX_PARALLEL
+        value: "2"
+      # Set these in the Render dashboard (Environment tab). Without them the
+      # site still serves the explainer + the baked /example; only live
+      # "paste a GitHub URL" runs need a key.
+      - key: GROQ_API_KEY
+        sync: false
+      - key: ANTHROPIC_API_KEY
+        sync: false

@@ -36,9 +36,30 @@ docforge-serve --reload                    # web UI on :8000
 docforge-eval --testset eval/testset       # run the 5-axis eval against your testset
 ```
 
-### Deploy
+### The website
 
-See `DEPLOY.md`. TL;DR: `fly secrets set GROQ_API_KEY=...` then `fly deploy`.
+`docforge-serve` (or any deploy below) serves a full explainer site plus the live tool:
+
+| Route | What |
+|---|---|
+| `/` | Explainer: the problem, the 9-agent graph, grounding + critic loop, the eval, a real run, deploy. Live "paste a GitHub URL" form when a key is configured. |
+| `/example` | A **real** docforge run on the daimon repo — generated docs, the Mermaid diagram, scout findings, the critic's verdict, and the honest rate-limit failure case. **No API key needed.** |
+| `/scoreboard` | The 5-axis eval scoreboard (populated by `docforge-eval`). |
+| `/showcase` | Featured example + eval lineup. |
+| `/api/health`, `/api/run`, `/api/run/{id}/stream` (SSE) | JSON/streaming API. |
+
+The site renders fully **with no API key** — only the live-run path needs one (and degrades to a friendly 503 + example link when absent).
+
+### Deploy (one Dockerfile, binds `$PORT`)
+
+| Platform | Command |
+|---|---|
+| Fly.io | `fly secrets set GROQ_API_KEY=… && fly deploy` (`fly.toml`) |
+| Render | one-click Blueprint (`render.yaml`) |
+| Railway | auto-detects the `Dockerfile` |
+| Docker / compose | `docker compose up --build` |
+
+Full instructions + the secrets matrix + demo-mode notes in [`DEPLOY.md`](DEPLOY.md).
 
 ### Self-documenting + eval-on-PR
 

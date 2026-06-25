@@ -9,6 +9,8 @@ primary_region = "syd"            # Sydney — closest to Yash. Change as needed
   dockerfile = "Dockerfile"
 
 [env]
+  # The container binds ${PORT:-8000}; keep PORT and http_service.internal_port
+  # in lockstep if you change either.
   PORT = "8000"
   DOCFORGE_MAX_PARALLEL = "4"
 

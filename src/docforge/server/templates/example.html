@@ -1,0 +1,116 @@
+{% extends "base.html" %}
+{% block title %}docforge · a real run on {{ ex.repo }}{% endblock %}
+
+{% block content %}
+<section class="ex-head">
+  <span class="pill">live example · no API key needed</span>
+  <h1>docforge ran on <code>{{ ex.repo }}</code></h1>
+  <p class="lede">{{ ex.repo_blurb }}</p>
+  <p class="meta muted">
+    {{ ex.primary_language }} · {{ "{:,}".format(ex.loc) }} LOC · {{ ex.code_files }} code files ·
+    indexed {{ ex.chunks }} chunks in {{ ex.index_seconds }}s ·
+    team finished in {{ ex.team_seconds }}s · provider: <code>{{ ex.provider }}</code>
+  </p>
+</section>
+
+<!-- Scout findings -->
+<section class="band">
+  <h2>What the static scouts found <span class="muted small">(no LLM)</span></h2>
+  <div class="stat-row">
+    <div class="stat"><div class="stat-num">{{ ex.scouts.test_cases }}</div><div class="stat-label">test cases · {{ ex.scouts.frameworks|join(', ') }}</div></div>
+    <div class="stat"><div class="stat-num">{{ ex.scouts.http_routes }}</div><div class="stat-label">HTTP routes</div></div>
+    <div class="stat"><div class="stat-num">{{ ex.scouts.cli_commands }}</div><div class="stat-label">CLI commands</div></div>
+    <div class="stat"><div class="stat-num">{{ ex.scouts.env_vars }}</div><div class="stat-label">env vars (redacted)</div></div>
+  </div>
+</section>
+
+<!-- Critic scorecard -->
+<section class="band band-alt">
+  <h2>The critic's verdict <span class="muted small">(cycle {{ ex.critique.cycle }})</span></h2>
+  <div class="stat-row">
+    <div class="stat"><div class="stat-num">{{ (ex.critique.factuality * 100)|round|int }}%</div><div class="stat-label">factuality</div></div>
+    <div class="stat"><div class="stat-num">{{ (ex.critique.coverage * 100)|round|int }}%</div><div class="stat-label">coverage</div></div>
+    <div class="stat"><div class="stat-num">{{ ex.critique.citation_density }}</div><div class="stat-label">citations / 100 words</div></div>
+    <div class="stat"><div class="stat-num">{{ ex.critique.issues }}</div><div class="stat-label">issues flagged</div></div>
+  </div>
+  <p class="muted small">Breakdown: {{ ex.critique.broken_citation }} broken citations · {{ ex.critique.ungrounded }} ungrounded · {{ ex.critique.coverage_missing }} coverage-missing · {{ ex.critique.uncited_claim }} uncited.</p>
+</section>
+
+<!-- Diagram -->
+{% if ex.diagram_mmd %}
+<section class="band">
+  <h2>The generated architecture diagram</h2>
+  <p class="muted small">Emitted deterministically from the structured architecture — guaranteed to be valid Mermaid.</p>
+  <div class="mermaid-wrap"><pre class="mermaid">{{ ex.diagram_mmd }}</pre></div>
+</section>
+{% endif %}
+
+<!-- Generated docs -->
+<section class="band band-alt">
+  <h2>The generated docs</h2>
+  <p class="section-lede">Real output. Hover a <span class="cite-chip">[file:line]</span> citation — those are the promises the critic checked.</p>
+  <div class="doc-tabs" id="doc-tabs">
+    {% for name in ex.docs.keys() %}
+      <button class="doc-tab {% if loop.first %}active{% endif %}" data-target="doc-{{ loop.index }}">{{ name }}</button>
+    {% endfor %}
+  </div>
+  {% for name, body in ex.docs.items() %}
+    <article class="doc-panel {% if loop.first %}active{% endif %}" id="doc-{{ loop.index }}">
+      <div class="md" data-md>{{ body }}</div>
+    </article>
+  {% endfor %}
+</section>
+
+<!-- Failure case -->
+<section class="band">
+  <h2>The honest failure case</h2>
+  <div class="callout callout-warn">{{ ex.failure_note }}</div>
+  <p class="section-lede">
+    Wins from the same run:
+  </p>
+  <ul class="wins">
+    {% for w in ex.wins %}<li>{{ w }}</li>{% endfor %}
+  </ul>
+</section>
+
+<section class="closing">
+  <h2>Run it on your own repo</h2>
+  <div class="hero-cta">
+    <a class="btn btn-primary" href="/#run">Try it &rarr;</a>
+    <a class="btn btn-ghost" href="/scoreboard">Eval scoreboard</a>
+  </div>
+</section>
+{% endblock %}
+
+{% block scripts %}
+<script type="module">
+  import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs';
+  import { marked } from 'https://cdn.jsdelivr.net/npm/marked@12/lib/marked.esm.js';
+
+  // 1. Render each markdown doc, converting ```mermaid fences to live diagrams
+  //    and highlighting [file:line] citations.
+  const CITE = /\[([A-Za-z0-9_./-]+\.[A-Za-z0-9]+:\d+(?:-\d+)?)\]/g;
+  document.querySelectorAll('[data-md]').forEach((el) => {
+    const raw = el.textContent;
+    let html = marked.parse(raw, { breaks: false });
+    // turn ```mermaid code blocks into mermaid pre blocks
+    html = html.replace(/<pre><code class="language-mermaid">([\s\S]*?)<\/code><\/pre>/g,
+      (_, code) => `<pre class="mermaid">${code.replace(/&amp;/g,'&').replace(/&lt;/g,'<').replace(/&gt;/g,'>')}</pre>`);
+    // highlight citations (skip inside the mermaid blocks we just made)
+    html = html.replace(CITE, '<span class="cite-chip">[$1]</span>');
+    el.innerHTML = html;
+  });
+
+  mermaid.initialize({ startOnLoad: false, theme: 'dark', securityLevel: 'loose' });
+  mermaid.run({ querySelector: '.mermaid' });
+
+  // 2. Tabs
+  const tabs = document.querySelectorAll('.doc-tab');
+  tabs.forEach((t) => t.addEventListener('click', () => {
+    document.querySelectorAll('.doc-tab').forEach((x) => x.classList.remove('active'));
+    document.querySelectorAll('.doc-panel').forEach((x) => x.classList.remove('active'));
+    t.classList.add('active');
+    document.getElementById(t.dataset.target).classList.add('active');
+  }));
+</script>
+{% endblock %}
